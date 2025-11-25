@@ -5,10 +5,13 @@ import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.GameObject;
+import net.runelite.api.NPC;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.GameObjectSpawned;
 import net.runelite.api.events.GameObjectDespawned;
 import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.NpcSpawned;
+import net.runelite.api.events.NpcDespawned;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
@@ -51,6 +54,11 @@ public class ShipwreckSalvagingPlugin extends Plugin
     private static final Set<Integer> MERCHANT_SHIPWRECK_SALVAGEABLE_IDS = Set.of(60478);
     private static final Set<Integer> MERCHANT_SHIPWRECK_DEPLETED_IDS = Set.of(60479);
 
+    // NPC IDs to track
+    private static final Set<Integer> TARGET_NPC_IDS = Set.of(15186, 15187, 15188, 15189, 15190);
+    private static final int LARGE_NPC_ID = 15187; // 2x2 NPC that needs special handling
+    private static final int CENTER_NPC_ID = 15186; // NPC that needs center placement
+
     @Inject
     private Client client;
 
@@ -64,11 +72,23 @@ public class ShipwreckSalvagingPlugin extends Plugin
     private ShipwreckSalvagingOverlay overlay;
 
     private final Set<GameObject> activeShipwrecks = new HashSet<>();
+    private final Set<NPC> trackedNpcs = new HashSet<>();
 
     @Override
     protected void startUp() throws Exception
     {
         overlayManager.add(overlay);
+        // Scan for existing NPCs when plugin starts
+        if (client.getGameState() == net.runelite.api.GameState.LOGGED_IN)
+        {
+            for (NPC npc : client.getNpcs())
+            {
+                if (TARGET_NPC_IDS.contains(npc.getId()))
+                {
+                    trackedNpcs.add(npc);
+                }
+            }
+        }
         log.info("Shipwreck Salvaging started!");
     }
 
@@ -77,6 +97,7 @@ public class ShipwreckSalvagingPlugin extends Plugin
     {
         overlayManager.remove(overlay);
         activeShipwrecks.clear();
+        trackedNpcs.clear();
         log.info("Shipwreck Salvaging stopped!");
     }
 
@@ -98,17 +119,61 @@ public class ShipwreckSalvagingPlugin extends Plugin
     }
 
     @Subscribe
+    public void onNpcSpawned(NpcSpawned event)
+    {
+        NPC npc = event.getNpc();
+        if (TARGET_NPC_IDS.contains(npc.getId()))
+        {
+            trackedNpcs.add(npc);
+        }
+    }
+
+    @Subscribe
+    public void onNpcDespawned(NpcDespawned event)
+    {
+        NPC npc = event.getNpc();
+        trackedNpcs.remove(npc);
+    }
+
+    @Subscribe
     public void onGameStateChanged(GameStateChanged event)
     {
         if (event.getGameState().equals(net.runelite.api.GameState.LOADING))
         {
             activeShipwrecks.clear();
+            // Don't clear trackedNpcs here - let them persist
+        }
+        else if (event.getGameState().equals(net.runelite.api.GameState.LOGGED_IN))
+        {
+            // Re-scan for NPCs after loading to pick up any new ones
+            for (NPC npc : client.getNpcs())
+            {
+                if (TARGET_NPC_IDS.contains(npc.getId()))
+                {
+                    trackedNpcs.add(npc);
+                }
+            }
         }
     }
 
     public Set<GameObject> getActiveShipwrecks()
     {
         return activeShipwrecks;
+    }
+
+    public Set<NPC> getTrackedNpcs()
+    {
+        return trackedNpcs;
+    }
+
+    public boolean isLargeNpc(NPC npc)
+    {
+        return npc.getId() == LARGE_NPC_ID;
+    }
+
+    public boolean isCenterNpc(NPC npc)
+    {
+        return npc.getId() == CENTER_NPC_ID;
     }
 
     public boolean isShipwreckDepleted(GameObject gameObject)
@@ -142,7 +207,7 @@ public class ShipwreckSalvagingPlugin extends Plugin
         return isShipwreckSalvageable(gameObject) || isShipwreckDepleted(gameObject);
     }
 
-    public boolean isShipwreckEnabled(GameObject gameObject) // Changed access modifier to public for overlay use
+    public boolean isShipwreckEnabled(GameObject gameObject)
     {
         int id = gameObject.getId();
 
@@ -163,7 +228,6 @@ public class ShipwreckSalvagingPlugin extends Plugin
         if (MERCHANT_SHIPWRECK_SALVAGEABLE_IDS.contains(id) || MERCHANT_SHIPWRECK_DEPLETED_IDS.contains(id))
             return config.showMerchantShipwreck();
 
-        // Should theoretically not happen if isShipwreck(gameObject) is true
         return true;
     }
 

@@ -15,7 +15,7 @@ public interface ShipwreckSalvagingConfig extends Config
     @ConfigSection(
             name = "Salvage Range",
             description = "Settings for the salvage range overlay",
-            position = 0 // Moved to the top
+            position = 0
     )
     String salvageRangeSection = "salvageRange";
 
@@ -159,11 +159,43 @@ public interface ShipwreckSalvagingConfig extends Config
         return new Color(255, 0, 0, 255);
     }
 
-    // Toggle Shipwrecks Section - Position 3 (Last)
+    // NPC Marker Section - Position 3
+    @ConfigSection(
+            name = "Pivot Point",
+            description = "Settings for pivot point markers",
+            position = 3
+    )
+    String npcMarkerSection = "npcMarker";
+
+    @ConfigItem(
+            keyName = "showNpcMarker",
+            name = "Show Pivot Point",
+            description = "Shows a dot on the pivot point location",
+            section = npcMarkerSection,
+            position = 0
+    )
+    default boolean showNpcMarker()
+    {
+        return true;
+    }
+
+    @ConfigItem(
+            keyName = "npcMarkerColor",
+            name = "Pivot Point Color",
+            description = "Color of the pivot point marker dot",
+            section = npcMarkerSection,
+            position = 1
+    )
+    default Color npcMarkerColor()
+    {
+        return new Color(255, 255, 0, 255); // Yellow by default
+    }
+
+    // Toggle Shipwrecks Section - Position 4 (Last)
     @ConfigSection(
             name = "Toggle Shipwrecks",
             description = "Enable or disable specific shipwreck types",
-            position = 3, // Moved to the end
+            position = 4,
             closedByDefault = false
     )
     String toggleShipwrecksSection = "toggleShipwrecks";
@@ -182,7 +214,7 @@ public interface ShipwreckSalvagingConfig extends Config
 
     @ConfigItem(
             keyName = "showFishermanShipwreck",
-            name = "Fisherman's Shipwreck", // FIX APPLIED HERE
+            name = "Fisherman's Shipwreck",
             description = "Show highlights for Fisherman's Shipwrecks",
             section = toggleShipwrecksSection,
             position = 1
